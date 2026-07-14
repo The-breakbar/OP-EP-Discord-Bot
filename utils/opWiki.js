@@ -4,7 +4,7 @@ const client = new WikiBot({
 	protocol: "https",
 	server: "operators.wiki",
 	path: "/w",
-	userAgent: "OP-EP-Discord-Bot/1.0 (+https://github.com/The-breakbar/OP-EP-Discord-Bot) nodemw",
+	userAgent: "Operators Wiki Bot (operated by User:Breakbar)",
 	concurrency: 1
 });
 
