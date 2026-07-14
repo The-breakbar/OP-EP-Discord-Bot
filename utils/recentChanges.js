@@ -1,4 +1,5 @@
 const fetch = require("node-fetch");
+const { opQuery } = require("./opWiki");
 
 const EP_URL = "https://entry-point.fandom.com";
 const OP_URL = "https://operators.wiki";
@@ -41,29 +42,28 @@ module.exports = {
 				})
 				.catch((error) => console.log(`Failed to fetch EP recent changes.`));
 
-			// Make operators api call
-			fetch(
-				`${OP_URL}/w/api.php?action=query&list=recentchanges&rcprop=title|ids|sizes|comment|user|redirect&rcnamespace=0|10&rcshow=!bot&rcstart=${now}&rcend=${before}&format=json`
-			)
-				.then((response) => {
-					response
-						.json()
-						.then((jsonResponse) => {
-							try {
-								let edits = jsonResponse.query.recentchanges.reverse().filter((edit) => {
-									return ["edit", "new"].includes(edit.type) && !opChanges.some((prev) => prev.pageid == edit.pageid && prev.revid == edit.revid);
-								});
-								opChanges = edits.slice();
+			opQuery({
+				list: "recentchanges",
+				rcprop: "title|ids|sizes|comment|user|redirect",
+				rcnamespace: "0|10",
+				rcshow: "!bot",
+				rcstart: now,
+				rcend: before
+			})
+				.then((query) => {
+					try {
+						let edits = query.recentchanges.reverse().filter((edit) => {
+							return ["edit", "new"].includes(edit.type) && !opChanges.some((prev) => prev.pageid == edit.pageid && prev.revid == edit.revid);
+						});
+						opChanges = edits.slice();
 
-								let embeds = generateEmbed(edits, OP_URL + "/");
-								embeds.forEach((embed) => {
-									client.wikiServer.opLog.send({ embeds: [embed] }).catch((error) => console.error(error));
-								});
-							} catch (error) {
-								console.error(error);
-							}
-						})
-						.catch((error) => console.log(`Failed to parse OP recent changes.`));
+						let embeds = generateEmbed(edits, OP_URL + "/");
+						embeds.forEach((embed) => {
+							client.wikiServer.opLog.send({ embeds: [embed] }).catch((error) => console.error(error));
+						});
+					} catch (error) {
+						console.error(error);
+					}
 				})
 				.catch((error) => console.log(`Failed to fetch OP recent changes.`));
 		}, interval);
