@@ -70,4 +70,15 @@ const opGetArticle = (title) =>
 			})
 	);
 
-module.exports = { opQuery, opGetArticle };
+const opApiCall = (params) =>
+	withLogin(
+		() =>
+			new Promise((resolve, reject) => {
+				client.api.call(params, (err, info, next, data) => {
+					if (err) reject(err);
+					else resolve(data);
+				});
+			})
+	);
+
+module.exports = { opQuery, opGetArticle, opApiCall };

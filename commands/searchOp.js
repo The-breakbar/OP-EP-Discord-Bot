@@ -1,5 +1,5 @@
 const { MessageActionRow, MessageButton, ButtonBuilder, ActionRowBuilder, ButtonStyle, ApplicationCommandOptionType } = require("discord.js");
-const fetch = require("node-fetch");
+const { opApiCall } = require("../utils/opWiki");
 
 module.exports = {
 	global: true,
@@ -10,16 +10,19 @@ module.exports = {
 		// Defer reply
 		await interaction.deferReply();
 
-		// Make API call to wiki
 		const query = interaction.options.getString("query");
 		const queryDisplay = query.length > 50 ? query.slice(0, 50) + "..." : query;
-		const URI = encodeURI(`https://operators.wiki/w/api.php?action=opensearch&format=json&search=${query}&namespace=0&limit=5&redirects=resolve`);
-		const response = await fetch(URI).catch((error) => {
+		const data = await opApiCall({
+			action: "opensearch",
+			search: query,
+			namespace: 0,
+			limit: 5,
+			redirects: "resolve"
+		}).catch((error) => {
 			console.error(error);
 		});
 
-		if (response?.ok) {
-			const data = await response.json();
+		if (data) {
 			if (data[1].length == 0) {
 				const failEmbed = {
 					color: global.colors.purple,
