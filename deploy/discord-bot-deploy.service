@@ -5,4 +5,4 @@ After=network-online.target
 
 [Service]
 Type=oneshot
-ExecStart=/opt/discord-bot/deploy/deploy.sh
+ExecStart=/bin/bash /opt/discord-bot/deploy/deploy.sh
