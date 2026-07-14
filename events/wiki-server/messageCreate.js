@@ -1,27 +1,21 @@
+const redisClient = require("../../utils/redisClient.js");
 const { mute } = require("../../utils/muteUtils");
 const { Collection } = require("discord.js");
-const fs = require("fs");
-const path = require("path");
 
 let spamMessages = {};
 let warnings = {};
 let badMessageCount = {};
 
 let badWords = [];
-try {
-	const filterString = fs.readFileSync(path.join(__dirname, "../../word_filter.txt"), "utf8");
-	badWords = filterString
-		.split(/\r?\n/)
-		.filter((line) => line.trim().length > 0 && !line.trim().startsWith("#"))
-		.join(",")
-		.split(",")
-		.map((regexString) => regexString.trim())
-		.filter((regexString) => regexString.length > 0)
-		.map((regexString) => new RegExp(regexString, "i"));
-	console.log(`✅ Loaded ${badWords.length} word filter pattern${badWords.length == 1 ? "" : "s"}`);
-} catch (error) {
-	console.log("⚠️  Failed to load word_filter.txt, word filter disabled");
-}
+redisClient.get("filter").then((badWordString) => {
+	if (badWordString == null) {
+		console.log("⚠️  Failed to get filter string");
+	} else {
+		badWords = badWordString.split(",").map((regexString) => {
+			return new RegExp(regexString, "i");
+		});
+	}
+});
 
 const EP_URL = "https://entry-point.fandom.com/wiki/";
 const OP_URL = "https://operators.wiki/";

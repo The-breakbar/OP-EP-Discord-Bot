@@ -21,7 +21,7 @@ module.exports = {
 		initDaily();
 
 		// Sync unmutes on bot restart
-		// syncMuted(client);
+		syncMuted(client);
 
 		// Checks wiki for new edits periodically
 		recentChanges(20000, client);
