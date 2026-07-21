@@ -1,0 +1,10 @@
+[Unit]
+Description=Check for Discord Bot updates every 2 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=2min
+Unit=discord-bot-deploy.service
+
+[Install]
+WantedBy=timers.target

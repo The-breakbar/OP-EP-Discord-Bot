@@ -1,5 +1,5 @@
 const { ApplicationCommandOptionType } = require("discord.js");
-const redis = require("../../utils/redisClient");
+// const redis = require("../../utils/redisClient");
 
 module.exports = {
 	disabled: true,

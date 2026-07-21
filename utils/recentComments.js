@@ -1,4 +1,4 @@
-const fetch = require("node-fetch");
+const { opQuery, opGetArticle } = require("./opWiki");
 
 const OP_URL = "https://operators.wiki";
 let opComments = [];
@@ -9,23 +9,20 @@ module.exports = {
 			const now = Math.floor(Date.now() / 1000);
 			const before = now - interval / 1000;
 
-			let logResponse;
+			let query;
 			try {
-				logResponse = await fetch(`${OP_URL}/w/api.php?action=query&list=logevents&letype=commentstreams&lestart=${now}&leend=${before}&format=json`);
+				query = await opQuery({
+					list: "logevents",
+					letype: "commentstreams",
+					lestart: now,
+					leend: before
+				});
 			} catch (error) {
 				console.log(`Failed to fetch OP recent comments.`);
 				return;
 			}
 
-			let logJson;
-			try {
-				logJson = await logResponse.json();
-			} catch (error) {
-				console.log(`Failed to parse OP recent comments.`);
-				return;
-			}
-
-			let comments = logJson.query.logevents.reverse().filter((comment) => {
+			let comments = query.logevents.reverse().filter((comment) => {
 				return !opComments.some((prev) => prev.logid == comment.logid);
 			});
 			opComments = comments.slice();
@@ -48,9 +45,13 @@ const generateEmbed = async (comments) => {
 			user = user.replaceAll(" ", "_");
 
 			// Get raw comment
-			let commentResponse = await fetch(`${OP_URL}/${title}?action=raw`);
-			if (!commentResponse.ok) return undefined;
-			let commentText = await commentResponse.text();
+			let commentText;
+			try {
+				commentText = await opGetArticle(title);
+			} catch (error) {
+				return undefined;
+			}
+			if (commentText == null) return undefined;
 
 			// Remove {{DISPLAYTITLE: ...}} from comment
 			commentText = commentText.replace(/{{DISPLAYTITLE:(.|\n)*}}/, "");

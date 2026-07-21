@@ -26,7 +26,7 @@ module.exports = {
 		};
 
 		// Check if user is supposed to be muted
-		await checkMute(member);
+		// await checkMute(member);
 
 		await client.wikiServer.log.send({ embeds: [embed] });
 	}
