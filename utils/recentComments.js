@@ -1,6 +1,7 @@
-const { opQuery, opGetArticle } = require("./opWiki");
+const { opQuery, opApiCall } = require("./opWiki");
 
 const OP_URL = "https://operators.wiki";
+const MAX_BODY_LENGTH = 1500;
 let opComments = [];
 
 module.exports = {
@@ -14,6 +15,7 @@ module.exports = {
 				query = await opQuery({
 					list: "logevents",
 					letype: "commentstreams",
+					leprop: "ids|title|type|user|timestamp|details",
 					lestart: now,
 					leend: before
 				});
@@ -37,44 +39,63 @@ module.exports = {
 	}
 };
 
+const parseEntityId = (target) => {
+	const match = /#cs-comment-(\d+)$/.exec(target || "");
+	return match ? match[1] : null;
+};
+
+const verbs = {
+	"comment-create": "posted",
+	"reply-create": "replied",
+	"comment-edit": "edited their comment",
+	"reply-edit": "edited their reply",
+	"comment-delete": "deleted their comment",
+	"reply-delete": "deleted their reply"
+};
+
+// The API returns wikitext with entities still encoded
+const decodeEntities = (text) =>
+	text
+		.replace(/&#0?39;/g, "'")
+		.replace(/&quot;/g, '"')
+		.replace(/&lt;/g, "<")
+		.replace(/&gt;/g, ">")
+		.replace(/&nbsp;/g, " ")
+		.replace(/&amp;/g, "&");
+
 const generateEmbed = async (comments) => {
 	return await Promise.all(
-		comments.map(async (comment) => {
-			let { user, title, action } = comment;
-			title = title.replaceAll(" ", "_");
-			user = user.replaceAll(" ", "_");
+		comments.map(async (event) => {
+			const { user, title, action, params } = event;
+			const kind = action.replace(/-v\d+$/, "");
+			const verb = verbs[kind];
+			if (!verb) return undefined;
 
-			// Get raw comment
-			let commentText;
-			try {
-				commentText = await opGetArticle(title);
-			} catch (error) {
-				return undefined;
+			const isReply = kind.startsWith("reply-");
+			const linkTarget = (isReply ? params?.replyLinkTarget : params?.commentLinkTarget) || title;
+			const entityId = parseEntityId(linkTarget);
+
+			// A deleted comment can no longer be fetched, so it is announced without its body
+			let body = "";
+			let commentTitle = params?.commentName;
+			if (entityId && !kind.endsWith("-delete")) {
+				try {
+					const data = await opApiCall({ action: isReply ? "csqueryreply" : "csquerycomment", entityid: entityId });
+					const entity = isReply ? data.csqueryreply : data.csquerycomment;
+					body = decodeEntities(entity?.wikitext || "");
+					commentTitle = entity?.commenttitle || commentTitle;
+				} catch (error) {
+					return undefined;
+				}
 			}
-			if (commentText == null) return undefined;
 
-			// Remove {{DISPLAYTITLE: ...}} from comment
-			commentText = commentText.replace(/{{DISPLAYTITLE:(.|\n)*}}/, "");
+			if (body.length > MAX_BODY_LENGTH) body = body.slice(0, MAX_BODY_LENGTH) + "...";
 
 			// Create embed
-			let description = "Invalid action";
-			const userLink = `[${user}](${OP_URL}/User:${user})`;
-			switch (action) {
-				case "comment-create":
-					description = `${userLink} posted: ${commentText}`;
-					break;
-				case "reply-create":
-					description = `${userLink} replied: ${commentText}`;
-					break;
-				case "comment-edit":
-				case "reply-edit":
-					description = `${userLink} edited their comment: ${commentText}`;
-					break;
-				case "reply-delete":
-				case "comment-delete":
-					description = `${userLink} deleted their comment: ${commentText}`;
-					break;
-			}
+			const userLink = `[${user}](${OP_URL}/User:${user.replaceAll(" ", "_")})`;
+			const pageLink = `[${title}](${OP_URL}/${linkTarget.replaceAll(" ", "_")})`;
+			const description =
+				`${userLink} ${verb} on ${pageLink}` + (commentTitle ? ` | ${commentTitle}` : "") + (body ? `\n${body}` : "");
 
 			const embed = {
 				color: global.colors.purple,
