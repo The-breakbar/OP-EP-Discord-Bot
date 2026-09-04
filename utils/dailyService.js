@@ -1,5 +1,7 @@
+require("./requestTimeout");
 const WikiBot = require("nodemw");
 const fs = require("fs");
+const path = require("path");
 
 // MediaWiki API Client
 let client = new WikiBot({
@@ -8,15 +10,15 @@ let client = new WikiBot({
 	path: ""
 });
 
+let nthSundayUTC = (year, month, n, hour) => {
+	const first = new Date(Date.UTC(year, month, 1));
+	return Date.UTC(year, month, 1 + ((7 - first.getUTCDay()) % 7) + (n - 1) * 7, hour);
+};
+
 let isDST = () => {
-	// Check daylight saving time in EST (correct until 2026)
-	const now = new Date();
-	const year = now.getUTCFullYear();
-	const dstStart = new Date(`March 1, ${year} 02:00:00 EST`);
-	const dstEnd = new Date(`November 1, ${year} 02:00:00 EST`);
-	dstStart.setDate(dstStart.getDate() + (14 - dstStart.getDay()));
-	dstEnd.setDate(dstEnd.getDate() + (7 - dstEnd.getDay()));
-	return dstStart < now && now < dstEnd;
+	const now = Date.now();
+	const year = new Date(now).getUTCFullYear();
+	return nthSundayUTC(year, 2, 2, 7) <= now && now < nthSundayUTC(year, 10, 1, 6);
 };
 
 let getRemainingTime = () => {
@@ -33,20 +35,19 @@ let getRemainingTime = () => {
 };
 
 let getESTDate = () => {
-	let now = new Date();
-	if (isDST()) {
-		now.setUTCHours(now.getUTCHours() + 1);
-	}
-	let dateString = now.toLocaleString("en-GB", { timeZone: "EST" }).split(",")[0];
-	return dateString.split("/").reverse().join("-");
+	return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 };
 
 let getDailyStrings = () => {
-	// Read in the file "DailyChallengeList.txt"
-	let lines = fs.readFileSync("utils/DailyChallengeList.txt", "utf8").split("\n");
-	let dailyString = lines.find((line) => line.startsWith(getESTDate()));
-	let nextDailyString = lines[lines.indexOf(dailyString) + 1];
-	return [dailyString, nextDailyString];
+	let lines = fs
+		.readFileSync(path.join(__dirname, "DailyChallengeList.txt"), "utf8")
+		.split("\n")
+		.map((line) => line.trim())
+		.filter((line) => line);
+
+	let index = lines.findIndex((line) => line.startsWith(getESTDate()));
+	if (index === -1) return [];
+	return [lines[index], lines[index + 1]];
 };
 
 const letterToClass = {
@@ -82,17 +83,31 @@ let dailyStringIntoObject = (dailyString) => {
 let dailyStrings;
 
 let readDailyStrings = () => {
-	return dailyStrings;
+	return dailyStrings ?? [];
+};
+
+let warnIfMissing = () => {
+	if (dailyStrings[0]) return false;
+	console.error(`No daily challenge entry for ${getESTDate()}, DailyChallengeList.txt needs to be extended.`);
+	return true;
+};
+
+let scheduleNextUpdate = () => {
+	setTimeout(updateDaily, (getRemainingTime() + 1) * 1000);
 };
 
 let initDaily = async () => {
 	dailyStrings = getDailyStrings();
-	setTimeout(updateDaily, (getRemainingTime() + 1) * 1000);
+	warnIfMissing();
+	scheduleNextUpdate();
 };
 
 let updateDaily = async () => {
+	scheduleNextUpdate();
+
 	// Update dailyStrings
 	dailyStrings = getDailyStrings();
+	if (warnIfMissing()) return;
 
 	client.logIn(process.env.WIKI_USERNAME, process.env.WIKI_PASSWORD, (err) => {
 		if (err) {

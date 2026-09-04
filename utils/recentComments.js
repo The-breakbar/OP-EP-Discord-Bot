@@ -2,39 +2,51 @@ const { opQuery, opApiCall } = require("./opWiki");
 
 const OP_URL = "https://operators.wiki";
 const MAX_BODY_LENGTH = 1500;
-let opComments = [];
+
+const EVENT_LIMIT = 500;
+const SEEN_LIMIT = 500;
+const MAX_LOOKBACK = 3600;
+
+let opSince;
+let opSeen = [];
+let running = false;
 
 module.exports = {
 	recentComments(interval, client) {
-		setInterval(async () => {
-			const now = Math.floor(Date.now() / 1000);
-			const before = now - interval / 1000;
+		opSince = Math.floor(Date.now() / 1000);
 
-			let query;
+		setInterval(async () => {
+			if (running) return;
+			running = true;
+
+			const now = Math.floor(Date.now() / 1000);
+			opSince = Math.max(opSince, now - MAX_LOOKBACK);
+
 			try {
-				query = await opQuery({
+				const query = await opQuery({
 					list: "logevents",
 					letype: "commentstreams",
 					leprop: "ids|title|type|user|timestamp|details",
+					lelimit: EVENT_LIMIT,
 					lestart: now,
-					leend: before
+					leend: opSince
 				});
+
+				const comments = query.logevents.reverse().filter((comment) => !opSeen.includes(comment.logid));
+				opSeen = [...opSeen, ...comments.map((comment) => comment.logid)].slice(-SEEN_LIMIT);
+				opSince = now;
+
+				const embeds = await generateEmbeds(comments);
+
+				// Sent one at a time so the comments stay in chronological order
+				for (const embed of embeds) {
+					await client.wikiServer.opComments.send({ embeds: [embed] }).catch((error) => console.error(error));
+				}
 			} catch (error) {
-				console.log(`Failed to fetch OP recent comments.`);
-				return;
+				console.error(`Failed to fetch OP recent comments: ${error.message}`);
 			}
 
-			let comments = query.logevents.reverse().filter((comment) => {
-				return !opComments.some((prev) => prev.logid == comment.logid);
-			});
-			opComments = comments.slice();
-
-			let embeds = await generateEmbed(comments);
-			embeds
-				.filter((embed) => embed !== undefined)
-				.forEach(async (embed) => {
-					client.wikiServer.opComments.send({ embeds: [await embed] }).catch((error) => console.error(error));
-				});
+			running = false;
 		}, interval);
 	}
 };
@@ -63,8 +75,8 @@ const decodeEntities = (text) =>
 		.replace(/&nbsp;/g, " ")
 		.replace(/&amp;/g, "&");
 
-const generateEmbed = async (comments) => {
-	return await Promise.all(
+const generateEmbeds = async (comments) => {
+	const embeds = await Promise.all(
 		comments.map(async (event) => {
 			const { user, title, action, params } = event;
 			const kind = action.replace(/-v\d+$/, "");
@@ -105,4 +117,6 @@ const generateEmbed = async (comments) => {
 			return embed;
 		})
 	);
+
+	return embeds.filter((embed) => embed !== undefined);
 };

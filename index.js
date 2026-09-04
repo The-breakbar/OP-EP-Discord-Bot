@@ -32,8 +32,8 @@ const client = new Client({
 client.commands = new Collection();
 client.contextMenus = new Collection();
 
-// Error logging
-process.on("uncaughtException", (error) => console.error(error));
+process.on("uncaughtException", (error) => console.error("Uncaught exception:", error?.stack ?? error));
+process.on("unhandledRejection", (reason) => console.error("Unhandled rejection:", reason?.stack ?? reason));
 
 // Get all event handlers
 const allEvents = [...getJsFiles("./events"), ...getJsFiles("./events/command"), ...getJsFiles("./events/wiki-server"), ...getJsFiles("./events/log")];
