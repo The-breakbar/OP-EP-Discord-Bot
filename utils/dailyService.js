@@ -125,18 +125,27 @@ let updateDaily = async () => {
 			// Replace the old daily challenge with the new one
 			let dailyInfo = dailyStringIntoObject(dailyStrings[0]);
 
-			// Change the mission header and the three challenge headers
-			let matches = content.match(/!.*\|.*/g);
-			content = content.replace(matches[0], `! colspan="3" style="text-align:center;"|${dailyInfo.templateMission} (${dailyInfo.method})`);
-			content = content.replace(matches[1], `! style="text-align:center;"|<span class="${dailyInfo.challenges[0].class}">${dailyInfo.challenges[0].mod}</span>`);
-			content = content.replace(matches[2], `! style="text-align:center;"|<span class="${dailyInfo.challenges[1].class}">${dailyInfo.challenges[1].mod}</span>`);
-			content = content.replace(matches[3], `! style="text-align:center;"|<span class="${dailyInfo.challenges[2].class}">${dailyInfo.challenges[2].mod}</span>`);
+			let lines = content.split("\n");
+			let headers = [];
+			let descriptions = [];
+			lines.forEach((line, i) => {
+				if (/!.*\|.*/.test(line)) headers.push(i);
+				else if (/\|.*\|.*/.test(line)) descriptions.push(i);
+			});
 
-			// Replace the challenge descriptions
-			matches = content.match(/\|.*\|.*/g);
-			content = content.replace(matches[0], `| style="width: 33%;" |{{ModifierDescription|${dailyInfo.challenges[0].templateMod}}}`);
-			content = content.replace(matches[1], `| style="width: 33%;" |{{ModifierDescription|${dailyInfo.challenges[1].templateMod}}}`);
-			content = content.replace(matches[2], `| style="width: 33%;" |{{ModifierDescription|${dailyInfo.challenges[2].templateMod}}}`);
+			if (headers.length < 4 || descriptions.length < 3) {
+				console.error("Template:DailyChallenge no longer has the expected table layout, skipping update.");
+				return;
+			}
+
+			// Change the mission header, then each challenge header and its description
+			lines[headers[0]] = `! colspan="3" style="text-align:center;"|${dailyInfo.templateMission} (${dailyInfo.method})`;
+			dailyInfo.challenges.forEach((challenge, i) => {
+				lines[headers[i + 1]] = `! style="text-align:center;"|<span class="${challenge.class}">${challenge.mod}</span>`;
+				lines[descriptions[i]] = `| style="width: 33%;" |{{ModifierDescription|${challenge.templateMod}}}`;
+			});
+
+			content = lines.join("\n");
 
 			// Get token
 			client.getToken("Template:DailyChallenge", "edit", (err, token) => {
