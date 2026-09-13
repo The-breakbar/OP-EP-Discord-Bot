@@ -9,6 +9,8 @@ const client = new WikiBot({
 	concurrency: 1
 });
 
+client.api.logger.silent = true;
+
 const MAX_ATTEMPTS = 3;
 const RETRY_DELAY = 2000;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));

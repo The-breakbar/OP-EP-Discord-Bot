@@ -14,6 +14,23 @@ let opSeen = [];
 
 let running = false;
 
+const fetchChanges = async (url) => {
+	const response = await fetch(url);
+	if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+	let data;
+	try {
+		data = await response.json();
+	} catch {
+		throw new Error("response was not json");
+	}
+
+	if (data.error) throw new Error(`API error: ${data.error.code || "unknown"}`);
+	if (!data.query || !data.query.recentchanges) throw new Error("response had no recentchanges list");
+
+	return data;
+};
+
 const editKey = (edit) => `${edit.pageid}-${edit.revid}`;
 const remember = (seen, edits) => [...seen, ...edits.map(editKey)].slice(-SEEN_LIMIT);
 const isLogged = (seen) => (edit) => ["edit", "new"].includes(edit.type) && !seen.includes(editKey(edit));
@@ -32,11 +49,10 @@ module.exports = {
 
 			// Make EP api call
 			try {
-				const response = await fetch(
+				const jsonResponse = await fetchChanges(
 					`${EP_URL}/api.php?action=query&list=recentchanges&rcprop=title|ids|sizes|comment|user|redirect` +
 						`&rcnamespace=0|10&rcshow=!bot&rclimit=${CHANGE_LIMIT}&rcstart=${now}&rcend=${epSince}&format=json`
 				);
-				const jsonResponse = await response.json();
 
 				let edits = jsonResponse.query.recentchanges.reverse().filter(isLogged(epSeen));
 				epSeen = remember(epSeen, edits);

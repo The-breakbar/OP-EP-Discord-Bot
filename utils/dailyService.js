@@ -10,6 +10,8 @@ let client = new WikiBot({
 	path: ""
 });
 
+client.api.logger.silent = true;
+
 let nthSundayUTC = (year, month, n, hour) => {
 	const first = new Date(Date.UTC(year, month, 1));
 	return Date.UTC(year, month, 1 + ((7 - first.getUTCDay()) % 7) + (n - 1) * 7, hour);
@@ -111,14 +113,14 @@ let updateDaily = async () => {
 
 	client.logIn(process.env.WIKI_USERNAME, process.env.WIKI_PASSWORD, (err) => {
 		if (err) {
-			console.log(err);
+			console.error(`Daily update failed at login: ${err.message}`);
 			return;
 		}
 
 		// Get the daily challenge template page
 		client.getArticle("Template:DailyChallenge", (err, content) => {
 			if (err) {
-				console.log(err);
+				console.error(`Daily update could not read Template:DailyChallenge: ${err.message}`);
 				return;
 			}
 
@@ -150,7 +152,7 @@ let updateDaily = async () => {
 			// Get token
 			client.getToken("Template:DailyChallenge", "edit", (err, token) => {
 				if (err) {
-					console.log(err);
+					console.error(`Daily update could not get an edit token: ${err.message}`);
 					return;
 				}
 
@@ -169,9 +171,11 @@ let updateDaily = async () => {
 					params,
 					(err, info, next) => {
 						if (err) {
-							console.log(err);
+							console.error(`Daily update edit failed: ${err.message}`);
 							return;
 						}
+
+						console.log(`Updated daily challenge to ${dailyInfo.mission} (${dailyInfo.method}) for ${getESTDate()}`);
 					},
 					"POST"
 				);
